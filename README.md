@@ -97,20 +97,20 @@ cp -R build/ClipKeep.app /Applications/
 
 工作区不干净时会拒绝发布，确保发出的包能对应到确定的提交。
 
-首次发布前需生成并导出签名密钥：
+首次发布前需生成签名密钥：
 
 ```bash
-Tools/generate_keys                                  # 生成密钥对（私钥入钥匙串）
-mkdir -p ~/.clipkeep && chmod 700 ~/.clipkeep
-Tools/generate_keys -x ~/.clipkeep/signing.key       # 导出（会弹钥匙串授权，点「始终允许」）
-chmod 600 ~/.clipkeep/signing.key
+./generate-signing-key.sh     # 私钥写入 ~/.clipkeep/signing.key（权限 0600）
+# 按输出提示把公钥写入 Resources/Info.plist 的 SUPublicEDKey
 ```
 
-导出到文件是因为 `sign_update` 每次访问钥匙串都可能弹授权对话框，
-而后台脚本无法应答，会导致发布流程挂死（已实测）。私钥文件在仓库之外，
+私钥存文件而非钥匙串：`sign_update` 每次访问钥匙串都可能弹授权对话框，
+后台脚本无法应答会导致发布流程无限挂死（已实测）。文件方式经
+`--ed-key-file -` 从 stdin 读取，全程无交互。私钥在仓库之外，
 权限必须为 600，`release.sh` 会检查。
 
-生成新密钥后需把输出的公钥写入 `Resources/Info.plist` 的 `SUPublicEDKey`。
+**丢失私钥意味着无法再为已安装用户推送更新** —— 他们内嵌的公钥无法匹配
+新密钥。请离线备份。同理，轮换密钥后旧版本用户只能手动下载新版。
 
 ## 配置
 

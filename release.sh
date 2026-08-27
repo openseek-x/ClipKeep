@@ -54,10 +54,7 @@ echo "==> 校验私钥可用"
 if [[ ! -f "${KEY_FILE}" ]]; then
     echo "错误：未找到私钥 ${KEY_FILE}" >&2
     echo "" >&2
-    echo "首次发布请在前台终端运行（会弹钥匙串对话框，点「始终允许」）：" >&2
-    echo "  mkdir -p ~/.clipkeep && chmod 700 ~/.clipkeep" >&2
-    echo "  Tools/generate_keys -x ~/.clipkeep/signing.key" >&2
-    echo "  chmod 600 ~/.clipkeep/signing.key" >&2
+    echo "首次发布请运行： ./generate-signing-key.sh" >&2
     exit 1
 fi
 # 私钥文件权限必须严格：组或其他用户可读即视为已泄露风险
@@ -89,10 +86,6 @@ sign_with_timeout() {
     cat "$out"
     rm -f "$out"
     return $rc
-}
-
-verify_with_key() {
-    "${SIGN_TOOL}" --verify "$1" "$2" 2>&1
 }
 
 echo "test" > /tmp/.sign-probe
@@ -132,12 +125,38 @@ SIGNATURE=$(sign_with_timeout "${DMG}") || {
 [[ -n "${SIGNATURE}" ]] || { echo "错误：签名为空" >&2; exit 1; }
 echo "    签名已生成 (${#SIGNATURE} 字符)"
 
-echo "==> 自检：验签必须通过"
-"${SIGN_TOOL}" --verify "${DMG}" "${SIGNATURE}" || {
-    echo "错误：自检验签失败，中止发布" >&2
+echo "==> 自检：用 Info.plist 中的公钥验签，必须通过"
+# 不用 sign_update --verify：它从钥匙串读密钥，会弹授权对话框导致挂死。
+# 改为直接用内嵌公钥验证，这也更贴近客户端的真实验签路径 ——
+# 确认发出的签名确实能被 app 内的公钥接受。
+PUBKEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' Resources/Info.plist)
+VERIFY_BIN="${BUILD_DIR}/.verify-sig"
+cat > "${BUILD_DIR}/.verify-sig.swift" <<'SWIFT'
+import Foundation
+import CryptoKit
+@main struct V {
+    static func main() {
+        let a = CommandLine.arguments
+        guard a.count == 4,
+              let data = try? Data(contentsOf: URL(fileURLWithPath: a[1])),
+              let sig = Data(base64Encoded: a[2]),
+              let pubRaw = Data(base64Encoded: a[3]),
+              let pub = try? Curve25519.Signing.PublicKey(rawRepresentation: pubRaw)
+        else { print("INVALID_INPUT"); exit(2) }
+        if pub.isValidSignature(sig, for: data) { print("VALID") } else { print("INVALID"); exit(1) }
+    }
+}
+SWIFT
+swiftc -parse-as-library -O "${BUILD_DIR}/.verify-sig.swift" -o "${VERIFY_BIN}" 2>/dev/null
+RESULT=$("${VERIFY_BIN}" "${DMG}" "${SIGNATURE}" "${PUBKEY}" 2>&1) || {
+    echo "错误：自检验签失败（${RESULT}）。" >&2
+    echo "签名与 Info.plist 中的 SUPublicEDKey 不匹配 —— 发出去用户也无法安装。" >&2
+    echo "请确认 ${KEY_FILE} 与该公钥是同一对密钥。" >&2
+    rm -f "${VERIFY_BIN}" "${BUILD_DIR}/.verify-sig.swift"
     exit 1
 }
-echo "    验签通过"
+rm -f "${VERIFY_BIN}" "${BUILD_DIR}/.verify-sig.swift"
+echo "    验签通过（公钥 ${PUBKEY:0:16}…）"
 
 echo "==> 提交版本号变更并打标签"
 git add Resources/Info.plist

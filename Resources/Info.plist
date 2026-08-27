@@ -30,10 +30,10 @@
 
     <!-- ===== Sparkle 自动更新 ===== -->
 
-    <!-- EdDSA 验签公钥。对应私钥仅存于维护者钥匙串，绝不进仓库。
+    <!-- EdDSA 验签公钥。对应私钥仅存于 ~/.clipkeep/signing.key（权限 0600，仓库之外）。
          没有私钥即无法构造被本 app 接受的更新包。 -->
     <key>SUPublicEDKey</key>
-    <string>ToUe6I/GucqR9/Jcil/nIo5pn2xPMtaoornd/jd7XYc=</string>
+    <string>Sp5RNKOJQOCEf5mUwF2vVK9A2lj81HJdjAVx69FMKzc=</string>
 
     <!-- appcast 源，必须为 HTTPS。指向本仓库 gh-pages 上的 appcast.xml -->
     <key>SUFeedURL</key>
