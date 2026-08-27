@@ -3,6 +3,18 @@ build/
 *.dmg
 *.app
 
+# 签名私钥 —— 绝不可进版本控制
+# 私钥应存于仓库之外（默认 ~/.clipkeep/signing.key，权限 0600）
+*.key
+*.pem
+signing.key
+private*.key
+
+# Sparkle 框架与工具：由 ./fetch-sparkle.sh 从官方 Release 下载并校验 SHA-256。
+# 不提交 3MB 无来源二进制 blob —— 对使用者不透明，也无法验证是否被篡改。
+Frameworks/
+Tools/
+
 # Swift / Xcode
 .build/
 .swiftpm/

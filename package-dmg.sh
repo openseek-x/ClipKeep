@@ -103,8 +103,11 @@ echo "    挂载于 ${MOUNT_DIR}"
 
 # 用 Finder 设置图标位置与窗口尺寸。失败不阻断打包 —— 布局只影响观感，
 # 拖拽安装本身不依赖它（无 GUI 会话或 Finder 无权限时会失败）。
+#
+# 加超时：AppleScript 在 Finder 忙碌或无 GUI 会话时会无限等待（实测撞到过），
+# 会让整个发布流程挂死。布局是可选项，不值得为它阻塞。
 LAYOUT_OK=1
-if ! osascript >/dev/null 2>&1 <<APPLESCRIPT
+osascript > /dev/null 2>&1 <<APPLESCRIPT &
 tell application "Finder"
     tell disk "${MOUNTED_NAME}"
         open
@@ -127,9 +130,23 @@ tell application "Finder"
     end tell
 end tell
 APPLESCRIPT
-then
-    LAYOUT_OK=0
-    echo "    提示：Finder 布局设置未生效（不影响安装）"
+OSA_PID=$!
+LAYOUT_WAITED=0
+while kill -0 "${OSA_PID}" 2>/dev/null; do
+    if (( LAYOUT_WAITED >= 25 )); then
+        kill -9 "${OSA_PID}" 2>/dev/null
+        LAYOUT_OK=0
+        echo "    提示：Finder 布局超时，已跳过（不影响安装）"
+        break
+    fi
+    sleep 1
+    (( LAYOUT_WAITED++ ))
+done
+if (( LAYOUT_OK == 1 )); then
+    wait "${OSA_PID}" 2>/dev/null || {
+        LAYOUT_OK=0
+        echo "    提示：Finder 布局设置未生效（不影响安装）"
+    }
 fi
 
 # 让 .DS_Store 落盘

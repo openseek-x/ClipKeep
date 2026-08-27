@@ -6,7 +6,7 @@ macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键�
 [![许可](https://img.shields.io/github/license/openseek-x/ClipKeep?label=%E8%AE%B8%E5%8F%AF&style=flat-square)](LICENSE)
 ![平台](https://img.shields.io/badge/macOS-13.0%2B%20(arm64)-lightgrey?style=flat-square)
 
-**[⬇ 下载最新版本 (.dmg)](https://github.com/openseek-x/ClipKeep/releases/latest)** — 约 144KB，装完即用，无需任何系统授权。
+**[⬇ 下载最新版本 (.dmg)](https://github.com/openseek-x/ClipKeep/releases/latest)** — 约 1MB，装完即用，无需任何系统授权。
 
 ## 特点
 
@@ -14,6 +14,7 @@ macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键�
 - **无感记录**：复制任何内容自动入库，无提示、无弹窗、不打断工作。
 - **不抢焦点**：面板浮在最上层但不激活自身，取回内容后可直接在原位置 `Cmd+V`。
 - **密码不入库**：识别密码管理器的敏感标记与来源，自动跳过。
+- **自动更新**：内置 Sparkle，更新包经 EdDSA 签名校验，由你确认后才安装。
 
 ## 安装
 
@@ -27,6 +28,7 @@ macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键�
 ```bash
 git clone https://github.com/openseek-x/ClipKeep.git
 cd ClipKeep
+./fetch-sparkle.sh                  # 下载 Sparkle 框架（校验官方包 SHA-256）
 ./build.sh                          # 产出 build/ClipKeep.app
 cp -R build/ClipKeep.app /Applications/
 
@@ -71,6 +73,45 @@ cp -R build/ClipKeep.app /Applications/
 | 单条文本上限 | 200,000 字符，超出截断 |
 | 单张图片上限 | 2MB（PNG 重编码，超限自动降分辨率） |
 
+## 自动更新
+
+内置 [Sparkle](https://sparkle-project.org)，默认每 24 小时检查一次。发现新版本会弹出更新面板，
+**由你确认后才下载安装** —— 不静默替换本机可执行代码。
+
+菜单栏可随时「检查更新…」，也可关闭「自动检查更新」。
+
+更新包用 **EdDSA (Ed25519) 签名**，公钥硬编码在 app 的 `Info.plist` 中，
+私钥仅存于维护者本机。即使本仓库或 GitHub 账号被攻破，攻击者没有私钥
+也无法让已安装的 ClipKeep 接受其构造的更新包。
+
+不发送任何系统信息或使用统计（`SUSendProfileInfo` 为 false）。
+
+## 维护者：发布新版本
+
+```bash
+./release.sh 1.0.1 "本次更新说明"
+```
+
+脚本会依次完成：同步版本号 → 构建 → 打包 DMG → EdDSA 签名 → 自检验签 →
+打标签推送 → 创建 GitHub Release → 生成并发布 appcast 到 `gh-pages`。
+
+工作区不干净时会拒绝发布，确保发出的包能对应到确定的提交。
+
+首次发布前需生成并导出签名密钥：
+
+```bash
+Tools/generate_keys                                  # 生成密钥对（私钥入钥匙串）
+mkdir -p ~/.clipkeep && chmod 700 ~/.clipkeep
+Tools/generate_keys -x ~/.clipkeep/signing.key       # 导出（会弹钥匙串授权，点「始终允许」）
+chmod 600 ~/.clipkeep/signing.key
+```
+
+导出到文件是因为 `sign_update` 每次访问钥匙串都可能弹授权对话框，
+而后台脚本无法应答，会导致发布流程挂死（已实测）。私钥文件在仓库之外，
+权限必须为 600，`release.sh` 会检查。
+
+生成新密钥后需把输出的公钥写入 `Resources/Info.plist` 的 `SUPublicEDKey`。
+
 ## 配置
 
 配置文件：`~/Library/Application Support/ClipKeep/settings.json`（权限 0600）
@@ -97,7 +138,10 @@ cp -R build/ClipKeep.app /Applications/
 
 **历史记录以明文存储在本地 SQLite 数据库中**（`~/Library/Application Support/ClipKeep/history.sqlite`，权限 0600，仅当前用户可读）。这是剪贴板管理器的固有特性，不是本工具的疏漏 —— 要能把内容还给你，就必须能读出它。本工具**不加密**该数据库，请知悉这一点。
 
-数据完全留在本机，不上传、不同步、不联网。
+**剪贴板数据完全留在本机，不上传、不同步。** 唯一的网络活动是自动更新：
+向 `openseek-x.github.io` 请求 appcast、向 GitHub Releases 下载更新包。
+该请求不携带任何剪贴板内容，也不发送系统信息或使用统计
+（`SUSendProfileInfo` 为 false）。可在菜单栏关闭「自动检查更新」彻底断网。
 
 **密码过滤**采用三层独立判据，任一命中即跳过记录：
 
@@ -119,6 +163,7 @@ osascript -e 'id of app "你的密码管理器名称"'
 - **不记录文件路径**：复制的文件不会被记录。
 - **仅 Apple Silicon**：`build.sh` 目标为 arm64。Intel 机器需改 `-target x86_64-apple-macosx13.0`。
 - **未经公证**：无付费开发者账号，只能 ad-hoc 签名，故有上述 Gatekeeper 步骤。
+- **自动更新未端到端验证**：签名与验签链路已实测（篡改包被正确拒绝），但"旧版本发现并安装新版本"的完整流程尚未跑通一次真实升级 —— 需先发布 1.0.1 才能验证。
 
 ## 卸载
 

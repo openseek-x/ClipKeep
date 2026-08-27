@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var retentionTimer: Timer?
     private var settings = Settings()
+    private var updateController: UpdateController?
 
     /// 保留策略执行间隔：每小时一次，另在启动时执行一次。
     private static let retentionInterval: TimeInterval = 3600
@@ -42,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.restore(item)
         }
 
+        // setupUpdates 必须先于 setupStatusItem：菜单项要读取 updateController
+        // 的自动检查开关状态来设置勾选。
+        setupUpdates()
         setupStatusItem()
         setupMonitor(store: store)
         setupHotKey()
@@ -139,6 +143,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - 自动更新
+
+    private func setupUpdates() {
+        // Sparkle 的更新面板会挤掉历史面板焦点，需抑制"失焦即关"避免误关。
+        updateController = UpdateController { [weak self] in
+            self?.panelController?.suppressAutoClose(for: 300)
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        updateController?.checkForUpdates()
+    }
+
+    @objc private func toggleAutoUpdateCheck(_ sender: NSMenuItem) {
+        guard let uc = updateController else { return }
+        uc.automaticallyChecksForUpdates.toggle()
+        sender.state = uc.automaticallyChecksForUpdates ? .on : .off
+    }
+
     // MARK: - 菜单栏
 
     private func setupStatusItem() {
@@ -160,6 +183,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                keyEquivalent: "")
         login.state = isLaunchAtLoginEnabled ? .on : .off
         menu.addItem(login)
+
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "检查更新…", action: #selector(checkForUpdates), keyEquivalent: "")
+
+        let autoUpdate = NSMenuItem(title: "自动检查更新",
+                                    action: #selector(toggleAutoUpdateCheck), keyEquivalent: "")
+        autoUpdate.state = (updateController?.automaticallyChecksForUpdates ?? true) ? .on : .off
+        menu.addItem(autoUpdate)
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "打开配置文件…", action: #selector(revealSettings), keyEquivalent: "")
