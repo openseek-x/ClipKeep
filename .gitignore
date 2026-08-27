@@ -1,0 +1,30 @@
+# 构建产物
+build/
+*.dmg
+*.app
+
+# Swift / Xcode
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+*.moduleeach
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~
