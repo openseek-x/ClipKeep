@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>ClipKeep 更新</title>
+        <link>https://openseek-x.github.io/ClipKeep/appcast.xml</link>
+        <description>ClipKeep 自动更新源</description>
+        <language>zh-CN</language>
+    </channel>
+</rss>
