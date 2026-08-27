@@ -2,6 +2,12 @@
 
 macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键取回。
 
+[![下载](https://img.shields.io/github/v/release/openseek-x/ClipKeep?label=%E4%B8%8B%E8%BD%BD&style=flat-square)](https://github.com/openseek-x/ClipKeep/releases/latest)
+[![许可](https://img.shields.io/github/license/openseek-x/ClipKeep?label=%E8%AE%B8%E5%8F%AF&style=flat-square)](LICENSE)
+![平台](https://img.shields.io/badge/macOS-13.0%2B%20(arm64)-lightgrey?style=flat-square)
+
+**[⬇ 下载最新版本 (.dmg)](https://github.com/openseek-x/ClipKeep/releases/latest)** — 约 144KB，装完即用，无需任何系统授权。
+
 ## 特点
 
 - **零授权**：不需要辅助功能、不需要输入监听、不需要通知权限。安装即用。
@@ -11,21 +17,24 @@ macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键�
 
 ## 安装
 
-### 方式一：DMG 安装包（推荐分发给别人）
+### 方式一：下载 DMG（推荐）
+
+从 [Releases](https://github.com/openseek-x/ClipKeep/releases/latest) 下载 `.dmg`，
+打开后把 ClipKeep 拖到「应用程序」文件夹。
+
+### 方式二：自行构建
 
 ```bash
-./package-dmg.sh          # 产出 build/ClipKeep-1.0.0.dmg (约 140KB)
-```
-
-双击打开 DMG，把 ClipKeep 拖到 Applications 文件夹即可。
-
-### 方式二：直接构建安装
-
-```bash
-./build.sh
+git clone https://github.com/openseek-x/ClipKeep.git
+cd ClipKeep
+./build.sh                          # 产出 build/ClipKeep.app
 cp -R build/ClipKeep.app /Applications/
-open /Applications/ClipKeep.app
+
+# 或连 DMG 一起打包
+./package-dmg.sh                    # 产出 build/ClipKeep-1.0.0.dmg
 ```
+
+构建只需 Command Line Tools（`xcode-select --install`），不需要完整 Xcode。
 
 ### 首次打开（两种方式都需要）
 
