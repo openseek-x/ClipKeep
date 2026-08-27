@@ -2,55 +2,41 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>ClipKeep</string>
-    <key>CFBundleDisplayName</key>
-    <string>ClipKeep</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.clipkeep.app</string>
-    <key>CFBundleExecutable</key>
-    <string>ClipKeep</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <!-- 常驻菜单栏，不出现在 Dock 与 Cmd+Tab -->
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSSupportsAutomaticTermination</key>
-    <false/>
-    <key>NSSupportsSuddenTermination</key>
-    <false/>
-
-    <!-- ===== Sparkle 自动更新 ===== -->
-
-    <!-- EdDSA 验签公钥。对应私钥仅存于 ~/.clipkeep/signing.key（权限 0600，仓库之外）。
-         没有私钥即无法构造被本 app 接受的更新包。 -->
-    <key>SUPublicEDKey</key>
-    <string>Sp5RNKOJQOCEf5mUwF2vVK9A2lj81HJdjAVx69FMKzc=</string>
-
-    <!-- appcast 源，必须为 HTTPS。指向本仓库 gh-pages 上的 appcast.xml -->
-    <key>SUFeedURL</key>
-    <string>https://openseek-x.github.io/ClipKeep/appcast.xml</string>
-
-    <!-- 自动检查更新，但不自动下载安装：发现新版本时弹面板由用户确认。 -->
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>SUAutomaticallyUpdate</key>
-    <false/>
-
-    <!-- 检查间隔 24 小时。过于频繁会浪费用户流量且无实际收益。 -->
-    <key>SUScheduledCheckInterval</key>
-    <integer>86400</integer>
-
-    <!-- 不发送系统信息统计，与本工具"数据不外传"的隐私取向一致。 -->
-    <key>SUSendProfileInfo</key>
-    <false/>
+	<key>CFBundleDisplayName</key>
+	<string>ClipKeep</string>
+	<key>CFBundleExecutable</key>
+	<string>ClipKeep</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.clipkeep.app</string>
+	<key>CFBundleName</key>
+	<string>ClipKeep</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.1</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://openseek-x.github.io/ClipKeep/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Sp5RNKOJQOCEf5mUwF2vVK9A2lj81HJdjAVx69FMKzc=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUSendProfileInfo</key>
+	<false/>
 </dict>
 </plist>
