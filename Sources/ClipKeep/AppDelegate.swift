@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import ServiceManagement
 import SwiftUI
 
@@ -14,11 +15,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var retentionTimer: Timer?
     private var settings = Settings()
     private var updateController: UpdateController?
+    private var aiActionModel: AIActionViewModel?
+    private var aiSettingsController: AISettingsWindowController?
+    private let secretStore = SecretStore()
 
     /// 保留策略执行间隔：每小时一次，另在启动时执行一次。
     private static let retentionInterval: TimeInterval = 3600
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppMenu.install()
         settings = SettingsStore.load()
 
         do {
@@ -39,9 +44,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let model = HistoryViewModel(store: store)
         self.model = model
-        panelController = HistoryPanelController(model: model) { [weak self] item in
-            self?.restore(item)
-        }
+        let aiActionModel = AIActionViewModel(
+            settings: settings.aiSettings,
+            secretStore: secretStore,
+            onCopyResult: { [weak self] text in self?.copyAIResult(text) },
+            onSaveResult: { [weak self] text in self?.saveAIResult(text) }
+        )
+        self.aiActionModel = aiActionModel
+        panelController = HistoryPanelController(
+            model: model,
+            aiModel: aiActionModel,
+            onPick: { [weak self] item in self?.restore(item) },
+            onConfigureAI: { [weak self] in self?.showAISettings() }
+        )
 
         // setupUpdates 必须先于 setupStatusItem：菜单项要读取 updateController
         // 的自动检查开关状态来设置勾选。
@@ -56,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor?.stop()
         retentionTimer?.invalidate()
         hotKey.unregister()
+        aiActionModel?.cancel()
     }
 
     // MARK: - 剪贴板监听
@@ -115,6 +131,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 notifyUser(title: "无法读取图片", body: "该记录的图片数据已损坏。")
             }
+        }
+    }
+
+    private func copyAIResult(_ text: String) {
+        monitor?.willWriteToPasteboard()
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    private func saveAIResult(_ text: String) {
+        guard !Preview.isBlank(text) else { return }
+        let body = text.count > ClipboardMonitor.maxTextLength
+            ? String(text.prefix(ClipboardMonitor.maxTextLength))
+            : text
+        let hash = SHA256.hash(data: Data(body.utf8))
+            .compactMap { String(format: "%02x", $0) }.joined()
+        do {
+            try store?.upsert(.text(body, hash: hash, sourceApp: "com.clipkeep.app.ai"))
+            model?.reloadIfVisible(panelController?.isVisible == true)
+        } catch {
+            notifyUser(title: "保存 AI 结果失败", body: error.localizedDescription)
         }
     }
 
@@ -179,6 +217,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         capture.state = settings.captureImages ? .on : .off
         menu.addItem(capture)
 
+        menu.addItem(withTitle: "AI 设置…", action: #selector(showAISettings), keyEquivalent: "")
+
         let login = NSMenuItem(title: "开机自动启动", action: #selector(toggleLaunchAtLogin),
                                keyEquivalent: "")
         login.state = isLaunchAtLoginEnabled ? .on : .off
@@ -207,6 +247,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openPanel() { panelController?.show() }
+
+    @objc private func showAISettings() {
+        panelController?.suppressAutoClose(for: 300)
+        if aiSettingsController == nil {
+            aiSettingsController = AISettingsWindowController(
+                secretStore: secretStore,
+                onSave: { [weak self] aiSettings in
+                    guard let self else { return }
+                    self.settings.ai = aiSettings
+                    self.persistSettings()
+                    self.aiActionModel?.update(settings: aiSettings)
+                },
+                onClose: { [weak self] in self?.panelController?.resumeAutoClose() }
+            )
+        }
+        aiSettingsController?.show(settings: settings.aiSettings)
+    }
 
     @objc private func toggleImages(_ sender: NSMenuItem) {
         settings.captureImages.toggle()

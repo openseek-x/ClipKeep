@@ -16,7 +16,9 @@ final class HistoryPanelController: NSObject, NSWindowDelegate {
 
     private var panel: NSPanel?
     private let model: HistoryViewModel
+    private let aiModel: AIActionViewModel
     private let onPick: (ClipItem) -> Void
+    private let onConfigureAI: () -> Void
 
     /// 非全屏时的面板尺寸，退出全屏后恢复。
     private static let defaultSize = NSSize(width: 520, height: 420)
@@ -61,9 +63,17 @@ final class HistoryPanelController: NSObject, NSWindowDelegate {
         autoCloseSuppressedUntil = Date().addingTimeInterval(seconds)
     }
 
-    init(model: HistoryViewModel, onPick: @escaping (ClipItem) -> Void) {
+    func resumeAutoClose() {
+        autoCloseSuppressedUntil = .distantPast
+    }
+
+    init(model: HistoryViewModel, aiModel: AIActionViewModel,
+         onPick: @escaping (ClipItem) -> Void,
+         onConfigureAI: @escaping () -> Void) {
         self.model = model
+        self.aiModel = aiModel
         self.onPick = onPick
+        self.onConfigureAI = onConfigureAI
         super.init()
     }
 
@@ -93,6 +103,7 @@ final class HistoryPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
+        aiModel.cancel()
         // 全屏窗口不能只 orderOut：会留下一个空的全屏 Space。先退出全屏再隐藏。
         if isFullScreen, let panel {
             panel.toggleFullScreen(nil)
@@ -129,6 +140,7 @@ final class HistoryPanelController: NSObject, NSWindowDelegate {
 
         let root = HistoryView(
             model: model,
+            aiModel: aiModel,
             onPick: { [weak self] item in
                 guard let self else { return }
                 self.onPick(item)
@@ -136,7 +148,8 @@ final class HistoryPanelController: NSObject, NSWindowDelegate {
                 // 非全屏是临时弹窗，选完即关，立刻把焦点还给原 app。
                 if !self.isFullScreen { self.close() }
             },
-            onClose: { [weak self] in self?.close() }
+            onClose: { [weak self] in self?.close() },
+            onConfigureAI: onConfigureAI
         )
         p.contentView = NSHostingView(rootView: root)
         return p

@@ -36,15 +36,28 @@ swiftc \
   -target arm64-apple-macosx13.0 \
   -F Frameworks \
   -framework Sparkle \
+  -framework Security \
+  -framework ImageIO \
+  -framework Vision \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   Sources/ClipKeep/Models.swift \
+  Sources/ClipKeep/AIModels.swift \
   Sources/ClipKeep/Preview.swift \
+  Sources/ClipKeep/SensitiveDataScanner.swift \
+  Sources/ClipKeep/SecretStore.swift \
+  Sources/ClipKeep/AIProvider.swift \
+  Sources/ClipKeep/OpenAIResponsesProvider.swift \
+  Sources/ClipKeep/LocalCompatibleProvider.swift \
   Sources/ClipKeep/PrivacyFilter.swift \
   Sources/ClipKeep/ImageCodec.swift \
+  Sources/ClipKeep/ImageTextScanner.swift \
   Sources/ClipKeep/ClipStore.swift \
   Sources/ClipKeep/ClipboardMonitor.swift \
   Sources/ClipKeep/HotKeyManager.swift \
   Sources/ClipKeep/Settings.swift \
+  Sources/ClipKeep/AIActionViewModel.swift \
+  Sources/ClipKeep/AISettingsWindowController.swift \
+  Sources/ClipKeep/AppMenu.swift \
   Sources/ClipKeep/UpdateController.swift \
   Sources/ClipKeep/HistoryView.swift \
   Sources/ClipKeep/HistoryPanelController.swift \

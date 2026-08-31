@@ -43,6 +43,9 @@ final class HistoryViewModel: ObservableObject {
         do {
             try store.setFavorite(id: item.id, !item.isFavorite)
             reload()
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                selectedIndex = index
+            }
         } catch { NSLog("ClipKeep: 收藏失败 \(error)") }
     }
 
@@ -66,9 +69,11 @@ final class HistoryViewModel: ObservableObject {
 /// 历史面板视图。
 struct HistoryView: View {
     @ObservedObject var model: HistoryViewModel
+    @ObservedObject var aiModel: AIActionViewModel
     /// 用户确认取用某条：回填剪贴板并关闭面板。
     var onPick: (ClipItem) -> Void
     var onClose: () -> Void
+    var onConfigureAI: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +83,10 @@ struct HistoryView: View {
                 emptyState
             } else {
                 list
+            }
+            if aiModel.state.isVisible {
+                Divider()
+                AIResultView(model: aiModel)
             }
             Divider()
             footer
@@ -98,7 +107,10 @@ struct HistoryView: View {
                 set: { model.query = $0 }
             ), onMoveUp: { model.moveSelection(-1) },
                onMoveDown: { model.moveSelection(1) },
-               onConfirm: { if let s = model.selected { onPick(s) } },
+               onConfirm: {
+                   guard !aiModel.state.isVisible else { return }
+                   if let s = model.selected { onPick(s) }
+               },
                onCancel: onClose)
         }
         // 标题栏透明且隐藏标题，左上角三枚窗口按钮会浮在内容之上，
@@ -131,11 +143,34 @@ struct HistoryView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(model.items.enumerated()), id: \.element.id) { idx, item in
-                        HistoryRow(item: item, isSelected: idx == model.selectedIndex)
+                        HistoryRow(
+                            item: item,
+                            isSelected: idx == model.selectedIndex,
+                            aiEnabled: aiModel.isEnabled,
+                            aiActions: item.kind == .text
+                                ? AIAction.textActions : AIAction.imageActions,
+                            onPick: { model.selectedIndex = idx; onPick(item) },
+                            onAI: { model.selectedIndex = idx; performAI($0, on: item) },
+                            onConfigureAI: { model.selectedIndex = idx; onConfigureAI() },
+                            onToggleFavorite: {
+                                model.selectedIndex = idx
+                                model.toggleFavorite(item)
+                            },
+                            onDelete: { model.selectedIndex = idx; model.delete(item) }
+                        )
                             .id(item.id)
                             .contentShape(Rectangle())
-                            .onTapGesture { model.selectedIndex = idx; onPick(item) }
                             .contextMenu {
+                                Menu("AI 处理") {
+                                    if aiModel.isEnabled {
+                                        ForEach(item.kind == .text
+                                                ? AIAction.textActions : AIAction.imageActions) { action in
+                                            Button(action.title) { performAI(action, on: item) }
+                                        }
+                                    } else {
+                                        Button("配置 AI…") { onConfigureAI() }
+                                    }
+                                }
                                 Button(item.isFavorite ? "取消收藏" : "收藏") {
                                     model.toggleFavorite(item)
                                 }
@@ -152,10 +187,17 @@ struct HistoryView: View {
         }
     }
 
+    private func performAI(_ action: AIAction, on item: ClipItem) {
+        let target = item.kind == .image ? (model.fullItem(item) ?? item) : item
+        aiModel.perform(action, on: target)
+    }
+
     private var footer: some View {
         HStack(spacing: 14) {
-            hint("↑↓", "选择")
-            hint("↩", "复制")
+            if !aiModel.state.isVisible {
+                hint("↑↓", "选择")
+                hint("↩", "复制")
+            }
             hint("esc", "关闭")
             Spacer()
             Text("\(model.items.count) 条")
@@ -177,35 +219,182 @@ struct HistoryView: View {
     }
 }
 
+private struct AIResultView: View {
+    @ObservedObject var model: AIActionViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch model.state {
+            case .idle:
+                EmptyView()
+            case .preparing(let action):
+                header(title: action.title, icon: "photo.badge.magnifyingglass", color: .accentColor)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("正在本地准备图片并扫描可见文字…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button("取消") { model.cancel() }
+            case .confirmationRequired(let confirmation):
+                header(title: confirmation.action.title,
+                       icon: "exclamationmark.triangle.fill", color: .orange)
+                Text(confirmation.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("取消") { model.dismiss() }
+                    Button(confirmation.confirmTitle) { model.confirmPendingRequest() }
+                }
+            case .generating(let action, let partial):
+                header(title: action.title, icon: "sparkles", color: .accentColor)
+                if partial.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("正在生成…").font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    output(partial)
+                }
+                Button("取消") { model.cancel() }
+            case .result(let action, let text):
+                header(title: action.title, icon: "sparkles", color: .accentColor)
+                output(text)
+                HStack {
+                    Button("复制结果") { model.copyResult() }
+                    Button("保存到历史") { model.saveResult() }
+                    Spacer()
+                    Button("关闭") { model.dismiss() }
+                }
+            case .failed(let message):
+                header(title: "AI 处理失败", icon: "exclamationmark.circle", color: .red)
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                Button("关闭") { model.dismiss() }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    private func header(title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).foregroundStyle(color)
+            Text(title).font(.system(size: 12, weight: .semibold))
+            Spacer()
+        }
+    }
+
+    private func output(_ text: String) -> some View {
+        ScrollView {
+            Text(text)
+                .font(.system(size: 12))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 150)
+    }
+}
+
 /// 单行记录。
 private struct HistoryRow: View {
     let item: ClipItem
     let isSelected: Bool
+    let aiEnabled: Bool
+    let aiActions: [AIAction]
+    let onPick: () -> Void
+    let onAI: (AIAction) -> Void
+    let onConfigureAI: () -> Void
+    let onToggleFavorite: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            icon
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.preview.isEmpty ? "（空）" : item.preview)
-                    .lineLimit(2)
-                    .font(.system(size: 12))
-                HStack(spacing: 6) {
-                    Text(relativeTime)
-                    if let app = shortAppName { Text("·"); Text(app) }
+        HStack(spacing: 6) {
+            HStack(spacing: 10) {
+                icon
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.preview.isEmpty ? "（空）" : item.preview)
+                        .lineLimit(2)
+                        .font(.system(size: 12))
+                    HStack(spacing: 6) {
+                        Text(relativeTime)
+                        if let app = shortAppName { Text("·"); Text(app) }
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
                 }
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                Spacer(minLength: 4)
             }
-            Spacer(minLength: 4)
-            if item.isFavorite {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.yellow)
-            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onPick)
+
+            actionButtons
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+        .onHover { isHovered = $0 }
+    }
+
+    private var showsActions: Bool { isHovered || isSelected }
+
+    private var actionButtons: some View {
+        HStack(spacing: 2) {
+            Menu {
+                if aiEnabled {
+                    ForEach(aiActions) { action in
+                        Button(action.title) { onAI(action) }
+                    }
+                } else {
+                    Button("配置 AI…", action: onConfigureAI)
+                }
+            } label: {
+                actionIcon("sparkles", color: .accentColor)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 24, height: 24)
+            .opacity(showsActions ? 1 : 0)
+            .allowsHitTesting(showsActions)
+            .disabled(!showsActions)
+            .accessibilityHidden(!showsActions)
+            .accessibilityLabel("AI 处理")
+            .help("AI 处理")
+
+            Button(action: onToggleFavorite) {
+                actionIcon(item.isFavorite ? "star.fill" : "star",
+                           color: item.isFavorite ? .yellow : .secondary)
+            }
+            .buttonStyle(.plain)
+            .opacity(showsActions || item.isFavorite ? 1 : 0)
+            .allowsHitTesting(showsActions || item.isFavorite)
+            .disabled(!showsActions && !item.isFavorite)
+            .accessibilityHidden(!showsActions && !item.isFavorite)
+            .accessibilityLabel(item.isFavorite ? "取消收藏" : "收藏")
+            .help(item.isFavorite ? "取消收藏" : "收藏")
+
+            Button(action: onDelete) {
+                actionIcon("trash", color: .secondary)
+            }
+            .buttonStyle(.plain)
+            .opacity(showsActions ? 1 : 0)
+            .allowsHitTesting(showsActions)
+            .disabled(!showsActions)
+            .accessibilityHidden(!showsActions)
+            .accessibilityLabel("删除")
+            .help("删除")
+        }
+        // 固定操作区宽度，悬停显隐不会让摘要文字左右跳动。
+        .frame(width: 76, alignment: .trailing)
+    }
+
+    private func actionIcon(_ name: String, color: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(color)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
     }
 
     @ViewBuilder private var icon: some View {

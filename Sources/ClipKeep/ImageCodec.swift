@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import Foundation
+import ImageIO
 
 /// 剪贴板图片的读取与编码。
 ///
@@ -23,6 +24,12 @@ enum ImageCodec {
     /// 缩略图字节上限。超出则降低尺寸重编码，避免噪点图产生 140KB 缩略图。
     static let maxThumbnailBytes = 24 * 1024
 
+    /// 发送给 AI 的副本限制。图片历史仍保留原有入库质量，只有上传副本会缩小。
+    static let aiUploadMaxLongEdge = 2_048
+    static let aiUploadMaxBytes = 2 * 1024 * 1024
+    /// 拒绝异常巨大的源像素网格，避免缩略解码本身消耗失控。
+    private static let aiUploadMaxSourcePixels: Int64 = 100_000_000
+
     struct Encoded {
         let png: Data
         let thumbnail: Data
@@ -30,6 +37,61 @@ enum ImageCodec {
         let pixelHeight: Int
         /// PNG 字节的 SHA-256，作为去重键。
         let hash: String
+    }
+
+    struct AIUpload: Sendable {
+        let png: Data
+        let pixelWidth: Int
+        let pixelHeight: Int
+    }
+
+    /// 为多模态请求生成受限 PNG 副本。
+    ///
+    /// 使用 ImageIO 的缩略解码路径，不先把超大源图完整展开到内存；重新编码会移除
+    /// 原 PNG 中可能存在的附加元数据。返回 nil 时调用方不得上传原始字节兜底。
+    static func prepareAIUpload(pngData sourcePNG: Data) -> AIUpload? {
+        guard !Task.isCancelled, !sourcePNG.isEmpty,
+              let source = CGImageSourceCreateWithData(sourcePNG as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+              let height = properties[kCGImagePropertyPixelHeight] as? NSNumber else {
+            return nil
+        }
+        let sourceWidth = width.int64Value
+        let sourceHeight = height.int64Value
+        guard sourceWidth > 0, sourceHeight > 0,
+              sourceWidth <= aiUploadMaxSourcePixels / sourceHeight else { return nil }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: aiUploadMaxLongEdge,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        guard !Task.isCancelled else { return nil }
+        var rep = NSBitmapImageRep(cgImage: cgImage)
+        guard var png = pngData(from: rep) else { return nil }
+
+        // 不可压缩图像即使尺寸受限仍可能超过 2MB，逐级缩小直至满足上传硬上限。
+        var attempts = 0
+        while png.count > aiUploadMaxBytes && max(rep.pixelsWide, rep.pixelsHigh) > 256
+                && attempts < maxScaleAttempts {
+            guard !Task.isCancelled else { return nil }
+            let target = NSSize(width: max(1, CGFloat(rep.pixelsWide) / 2),
+                                height: max(1, CGFloat(rep.pixelsHigh) / 2))
+            guard let smaller = resized(rep, to: target), let data = pngData(from: smaller) else {
+                return nil
+            }
+            rep = smaller
+            png = data
+            attempts += 1
+        }
+        guard !Task.isCancelled, png.count <= aiUploadMaxBytes else { return nil }
+        return AIUpload(png: png, pixelWidth: rep.pixelsWide, pixelHeight: rep.pixelsHigh)
     }
 
     /// 从 TIFF 字节编码出入库所需的 PNG、缩略图与尺寸。

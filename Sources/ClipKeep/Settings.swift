@@ -20,6 +20,8 @@ struct Settings: Codable, Equatable {
     var blockedSourcePrefixes: [String] = []
     /// 是否开机自启。
     var launchAtLogin: Bool = false
+    /// AI 配置为可选字段，保证旧版 settings.json 缺少该键时仍可解码。
+    var ai: AISettings? = nil
 
     var shortcut: HotKeyManager.Shortcut {
         HotKeyManager.Shortcut(keyCode: hotKeyCode, modifiers: hotKeyModifiers)
@@ -41,8 +43,11 @@ struct Settings: Codable, Equatable {
             s.hotKeyCode = HotKeyManager.Shortcut.default.keyCode
             s.hotKeyModifiers = HotKeyManager.Shortcut.default.modifiers
         }
+        s.ai = (s.ai ?? AISettings()).validated()
         return s
     }
+
+    var aiSettings: AISettings { (ai ?? AISettings()).validated() }
 }
 
 /// 偏好读写。
@@ -70,6 +75,11 @@ enum SettingsStore {
     }
 
     static func save(_ settings: Settings) throws {
+        try save(settings, to: settingsPath)
+    }
+
+    static func save(_ settings: Settings, to path: String) throws {
+        let directory = (path as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: directory,
                                                 withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
@@ -77,12 +87,16 @@ enum SettingsStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(settings.validated())
         // 原子写：先写临时文件再替换，避免崩溃留下半截 JSON。
-        let tmp = settingsPath + ".tmp"
+        let tmp = path + ".tmp"
         try data.write(to: URL(fileURLWithPath: tmp), options: .atomic)
-        _ = try? FileManager.default.replaceItemAt(URL(fileURLWithPath: settingsPath),
-                                                   withItemAt: URL(fileURLWithPath: tmp))
+        if FileManager.default.fileExists(atPath: path) {
+            _ = try FileManager.default.replaceItemAt(URL(fileURLWithPath: path),
+                                                       withItemAt: URL(fileURLWithPath: tmp))
+        } else {
+            try FileManager.default.moveItem(atPath: tmp, toPath: path)
+        }
         try? FileManager.default.setAttributes([.posixPermissions: 0o600],
-                                               ofItemAtPath: settingsPath)
+                                               ofItemAtPath: path)
     }
 }
 

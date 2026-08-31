@@ -6,14 +6,15 @@ macOS 剪贴板历史工具。复制即自动记录，快捷键唤出，一键�
 [![许可](https://img.shields.io/github/license/openseek-x/ClipKeep?label=%E8%AE%B8%E5%8F%AF&style=flat-square)](LICENSE)
 ![平台](https://img.shields.io/badge/macOS-13.0%2B%20(arm64)-lightgrey?style=flat-square)
 
-**[⬇ 下载最新版本 (.dmg)](https://github.com/openseek-x/ClipKeep/releases/latest)** — 约 1MB，装完即用，无需任何系统授权。
+**[⬇ 下载最新版本 (.dmg)](https://github.com/openseek-x/ClipKeep/releases/latest)** — 约 1MB，核心功能装完即用，无需任何系统授权。
 
 ## 特点
 
-- **零授权**：不需要辅助功能、不需要输入监听、不需要通知权限。安装即用。
+- **核心零授权**：剪贴板记录、搜索和快捷键不需要辅助功能、输入监听或通知权限。
 - **无感记录**：复制任何内容自动入库，无提示、无弹窗、不打断工作。
 - **不抢焦点**：面板浮在最上层但不激活自身，取回内容后可直接在原位置 `Cmd+V`。
 - **密码不入库**：识别密码管理器的敏感标记与来源，自动跳过。
+- **可选 AI 动作**：仅在你右键选择后处理单条文本或图片，默认关闭，不自动上传历史。
 - **自动更新**：内置 Sparkle，更新包经 EdDSA 签名校验，由你确认后才安装。
 
 ## 安装
@@ -58,9 +59,11 @@ cp -R build/ClipKeep.app /Applications/
 | 取回到剪贴板 | `Enter`（然后回原位置按 `Cmd+V` 粘贴） |
 | 关闭面板 | `Esc` |
 | 搜索 | 面板打开后直接输入 |
-| 收藏 / 删除单条 | 右键点击该条 |
+| 收藏 / 删除单条 | 选中或悬停记录 → 行尾星标 / 删除按钮，也可右键 |
+| AI 总结 / 翻译 / 图片理解等 | 选中或悬停记录 → 行尾 AI 按钮，也可右键「AI 处理」 |
 
-菜单栏图标下可切换「记录图片」「开机自动启动」，以及清空历史。
+每行尾部为固定操作区：选中行始终显示 AI、收藏、删除，其他行悬停时显示；已收藏条目的
+星标保持可见。菜单栏图标下可切换「记录图片」「开机自动启动」，以及清空历史。
 
 ## 默认行为
 
@@ -85,6 +88,38 @@ cp -R build/ClipKeep.app /Applications/
 也无法让已安装的 ClipKeep 接受其构造的更新包。
 
 不发送任何系统信息或使用统计（`SUSendProfileInfo` 为 false）。
+
+## AI 功能（可选）
+
+AI 默认关闭。通过菜单栏「AI 设置…」选择服务、模型并启用后，可在记录的右键菜单中
+处理文本或图片。文本支持总结、翻译、润色、解释和提取待办；图片支持 OCR、描述、
+总结、翻译可见文字、提取关键信息和自定义指令。
+
+- **按需发送**：只发送你当次明确选择的文本或图片；不会后台分析或上传全部历史。
+- **两种服务**：支持 OpenAI Responses API，也支持本机或远程的
+  OpenAI-compatible Chat Completions 服务（例如本机 Ollama）。处理图片时配置的模型
+  必须支持视觉输入；本机默认建议为 `qwen3-vl:4b`（需先在 Ollama 中下载）。
+- **密钥保护**：API Key 存在 macOS 钥匙串，并按 `scheme://host:port` 隔离；更换服务
+  主机后必须使用该主机自己的 Key，不写入 `settings.json`、SQLite 或日志。
+- **传输限制**：远程服务必须使用 HTTPS；HTTP 只允许 `localhost`、`127.0.0.1`
+  或 `::1`，跨域重定向会被拒绝。
+- **本地网络权限**：本机回环服务不需要额外配置；若连接另一台局域网设备上的模型，
+  macOS 15+ 会请求“本地网络”权限，拒绝后仅该服务不可用。
+- **图片上传限制**：图片先在本地重新编码为最长边不超过 2048px、最大 2MB 的 PNG
+  副本，不上传数据库中的原始字节；每张图片每次发送前都显示服务、模型和副本大小，
+  必须再次确认。
+- **敏感信息拦截**：私钥、API Token、JWT 等高风险内容直接拒绝发送；图片先用 macOS
+  Vision 在本地 OCR，再扫描可见文字。OCR 与正则都可能漏检，只能降低误传风险，
+  不能保证识别全部敏感信息。
+- **结果可控**：结果先在本地预览；「复制结果」不会自动写入历史，只有点击
+  「保存到历史」才会入库。
+
+OpenAI 请求使用 `store=false`，但这不等于服务端零留存：默认仍可能按服务方政策
+保留安全日志，图片输入也可能接受服务方的内容安全扫描。详见
+[OpenAI 数据控制说明](https://developers.openai.com/api/docs/guides/your-data)和
+[图片输入说明](https://developers.openai.com/api/docs/guides/images-vision)。
+OpenAI API 也受[支持国家和地区](https://developers.openai.com/api/docs/supported-countries)
+限制；不适用时请使用合法可用的兼容服务或本机模型。
 
 ## 维护者：发布新版本
 
@@ -125,7 +160,17 @@ cp -R build/ClipKeep.app /Applications/
   "hotKeyCode": 9,
   "hotKeyModifiers": 768,
   "blockedSourcePrefixes": [],
-  "launchAtLogin": false
+  "launchAtLogin": false,
+  "ai": {
+    "enabled": false,
+    "provider": "openAI",
+    "baseURL": "https://api.openai.com/v1",
+    "model": "gpt-5.6-luna",
+    "maxInputCharacters": 12000,
+    "maxOutputTokens": 800,
+    "requestTimeoutSeconds": 45,
+    "customInstruction": ""
+  }
 }
 ```
 
@@ -138,10 +183,12 @@ cp -R build/ClipKeep.app /Applications/
 
 **历史记录以明文存储在本地 SQLite 数据库中**（`~/Library/Application Support/ClipKeep/history.sqlite`，权限 0600，仅当前用户可读）。这是剪贴板管理器的固有特性，不是本工具的疏漏 —— 要能把内容还给你，就必须能读出它。本工具**不加密**该数据库，请知悉这一点。
 
-**剪贴板数据完全留在本机，不上传、不同步。** 唯一的网络活动是自动更新：
-向 `openseek-x.github.io` 请求 appcast、向 GitHub Releases 下载更新包。
-该请求不携带任何剪贴板内容，也不发送系统信息或使用统计
-（`SUSendProfileInfo` 为 false）。可在菜单栏关闭「自动检查更新」彻底断网。
+**剪贴板数据默认完全留在本机，不上传、不同步。** 默认网络活动只有自动更新：
+向 `openseek-x.github.io` 请求 appcast、向 GitHub Releases 下载更新包；该请求不携带
+任何剪贴板内容，也不发送系统信息或使用统计（`SUSendProfileInfo` 为 false）。
+只有在你主动启用 AI、选择某条记录并确认相应操作时，该条文本或图片副本才会发送到
+你配置的服务；图片会额外逐次确认。
+关闭 AI 与「自动检查更新」后，应用不会主动联网。
 
 **密码过滤**采用三层独立判据，任一命中即跳过记录：
 
@@ -163,7 +210,11 @@ osascript -e 'id of app "你的密码管理器名称"'
 - **不记录文件路径**：复制的文件不会被记录。
 - **仅 Apple Silicon**：`build.sh` 目标为 arm64。Intel 机器需改 `-target x86_64-apple-macosx13.0`。
 - **未经公证**：无付费开发者账号，只能 ad-hoc 签名，故有上述 Gatekeeper 步骤。
-- **自动更新未端到端验证**：签名与验签链路已实测（篡改包被正确拒绝），但"旧版本发现并安装新版本"的完整流程尚未跑通一次真实升级 —— 需先发布 1.0.1 才能验证。
+- **AI 需自行配置服务**：OpenAI 模式需要用户自己的 API Key；本地兼容模式需要另行
+  安装并启动模型服务。图片处理要求模型支持视觉输入；不同兼容服务对 Base64 图片和
+  `detail` 参数的支持可能不同。AI 服务不可用、限流或超时时不会影响剪贴板记录与搜索。
+- **自动更新未端到端验证**：签名与验签链路已实测（篡改包被正确拒绝），但本次任务
+  尚未用已安装的 1.0.1 完成一次发现并安装 1.1.0 的真实升级；发布后仍需人工验收。
 
 ## 卸载
 
