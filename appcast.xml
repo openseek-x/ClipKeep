@@ -1,22 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
-        <title>ClipKeep 更新</title>
-        <link>https://openseek-x.github.io/ClipKeep/appcast.xml</link>
-        <description>ClipKeep 自动更新源</description>
-        <language>zh-CN</language>
+        <title>ClipKeep</title>
         <item>
-            <title>1.0.1</title>
-            <pubDate>Thu, 27 Aug 2026 12:23:56 +0000</pubDate>
-            <sparkle:version>2</sparkle:version>
-            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <title>1.1.0</title>
+            <pubDate>Tue, 01 Sep 2026 01:15:46 +0800</pubDate>
+            <link>https://github.com/openseek-x/ClipKeep</link>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[接入 Sparkle 自动更新：默认每 24 小时检查一次，发现新版本弹面板由你确认后安装。更新包经 EdDSA 签名校验。]]></description>
-            <enclosure
-                url="https://github.com/openseek-x/ClipKeep/releases/download/v1.0.1/ClipKeep-1.0.1.dmg"
-                sparkle:edSignature="I46yvCcqS+v7i5NL8VzOQnEDkIy3vtsiuvNhf8OJaep2JtB2DzV2OHvQ4tzDbGmalFNEMHN0V2V94baZpWZpCg=="
-                length="1052845"
-                type="application/octet-stream" />
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[新增可选 AI 文本与图片处理、自定义 Base URL/API Key、多模态 OCR 与安全确认、行尾快捷操作，并修复设置粘贴。
+]]></description>
+            <enclosure url="https://github.com/openseek-x/ClipKeep/releases/download/v1.1.0/ClipKeep-1.1.0.dmg" length="1191047" type="application/octet-stream" sparkle:edSignature="szUM/CC+LAHARdgKQIsJAI8fwtLJc2S2WuAR5pGvw6hUTOOVtJ4WjVF6W/uerjYXwuqvL2iXSNBqBASSec4TAw=="/>
         </item>
     </channel>
 </rss>
