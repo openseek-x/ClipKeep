@@ -1,18 +1,22 @@
-<?xml version="1.0" standalone="yes"?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
-        <title>ClipKeep</title>
+        <title>ClipKeep 更新</title>
+        <link>https://openseek-x.github.io/ClipKeep/appcast.xml</link>
+        <description>ClipKeep 自动更新源</description>
+        <language>zh-CN</language>
         <item>
-            <title>1.1.0</title>
-            <pubDate>Tue, 01 Sep 2026 01:15:46 +0800</pubDate>
-            <link>https://github.com/openseek-x/ClipKeep</link>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <title>1.1.1</title>
+            <pubDate>Tue, 01 Sep 2026 03:59:57 +0000</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[新增可选 AI 文本与图片处理、自定义 Base URL/API Key、多模态 OCR 与安全确认、行尾快捷操作，并修复设置粘贴。
-]]></description>
-            <enclosure url="https://github.com/openseek-x/ClipKeep/releases/download/v1.1.0/ClipKeep-1.1.0.dmg" length="1191047" type="application/octet-stream" sparkle:edSignature="szUM/CC+LAHARdgKQIsJAI8fwtLJc2S2WuAR5pGvw6hUTOOVtJ4WjVF6W/uerjYXwuqvL2iXSNBqBASSec4TAw=="/>
+            <description><![CDATA[AI 输入和输出限制支持关闭与直接输入；关闭输出限制时由模型服务决定，同时保留资源安全边界。]]></description>
+            <enclosure
+                url="https://github.com/openseek-x/ClipKeep/releases/download/v1.1.1/ClipKeep-1.1.1.dmg"
+                sparkle:edSignature="+LarQ6NiyOX3Bouafmc6H+DjcsDUb80oU6Hh4BGf0l+Rf/q/TwuamTM+c7zTISdI4Zuj7z7qOMesaDCieO4ADg=="
+                length="1208793"
+                type="application/octet-stream" />
         </item>
     </channel>
 </rss>
