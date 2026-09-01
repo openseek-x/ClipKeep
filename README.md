@@ -113,6 +113,8 @@ AI 默认关闭。通过菜单栏「AI 设置…」选择服务、模型并启�
   不能保证识别全部敏感信息。
 - **结果可控**：结果先在本地预览；「复制结果」不会自动写入历史，只有点击
   「保存到历史」才会入库。
+- **可选长度限制**：输入和输出限制默认关闭。开启后可直接输入任意正整数；关闭输出
+  限制时不向 Provider 发送 `max_output_tokens` / `max_tokens`，由模型服务决定。
 
 OpenAI 请求使用 `store=false`，但这不等于服务端零留存：默认仍可能按服务方政策
 保留安全日志，图片输入也可能接受服务方的内容安全扫描。详见
@@ -166,8 +168,8 @@ OpenAI API 也受[支持国家和地区](https://developers.openai.com/api/docs/
     "provider": "openAI",
     "baseURL": "https://api.openai.com/v1",
     "model": "gpt-5.6-luna",
-    "maxInputCharacters": 12000,
-    "maxOutputTokens": 800,
+    "maxInputCharacters": 0,
+    "maxOutputTokens": 0,
     "requestTimeoutSeconds": 45,
     "customInstruction": ""
   }
@@ -177,7 +179,12 @@ OpenAI API 也受[支持国家和地区](https://developers.openai.com/api/docs/
 `blockedSourcePrefixes` 可追加自定义的来源黑名单（bundle id 前缀），
 例如 `["com.mycompany.internal"]` 会让该 app 复制的内容不被记录。
 
-改完配置需重启 ClipKeep 生效。数值会被夹取到安全区间，写入极端值不会导致失控。
+`maxInputCharacters` / `maxOutputTokens` 为 `0` 时表示不设置对应的客户端业务限制，
+正数表示启用限制。旧配置中的正数会原样保留，不会自动改成 `0`。
+
+改完配置需重启 ClipKeep 生效。保留条数、天数和超时等资源配置仍会夹取到安全区间。
+“不限制”不代表模型无限：文本入库仍最多 200,000 字符，服务端仍受模型上下文和默认
+输出策略约束，客户端仍保留超时与 512KB 流式响应硬上限。
 
 ## 隐私说明
 

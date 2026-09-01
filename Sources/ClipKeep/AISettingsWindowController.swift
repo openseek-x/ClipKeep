@@ -59,6 +59,8 @@ private final class AISettingsViewModel: ObservableObject {
     @Published var apiKey = ""
     @Published var errorMessage: String?
     private var loadedCredentialScope: String?
+    private var lastInputLimit: Int
+    private var lastOutputLimit: Int
 
     private let secretStore: SecretStore
     private let onSave: (AISettings) -> Void
@@ -68,6 +70,10 @@ private final class AISettingsViewModel: ObservableObject {
          onSave: @escaping (AISettings) -> Void,
          onCancel: @escaping () -> Void) {
         self.settings = settings.validated()
+        self.lastInputLimit = settings.maxInputCharacters > 0
+            ? settings.maxInputCharacters : AISettings.suggestedInputLimit
+        self.lastOutputLimit = settings.maxOutputTokens > 0
+            ? settings.maxOutputTokens : AISettings.suggestedOutputLimit
         self.secretStore = secretStore
         self.onSave = onSave
         self.onCancel = onCancel
@@ -92,6 +98,36 @@ private final class AISettingsViewModel: ObservableObject {
         } else {
             loadAPIKey()
         }
+    }
+
+    func setInputLimitEnabled(_ enabled: Bool) {
+        if enabled {
+            settings.maxInputCharacters = lastInputLimit
+        } else {
+            if settings.maxInputCharacters > 0 { lastInputLimit = settings.maxInputCharacters }
+            settings.maxInputCharacters = 0
+        }
+    }
+
+    func setOutputLimitEnabled(_ enabled: Bool) {
+        if enabled {
+            settings.maxOutputTokens = lastOutputLimit
+        } else {
+            if settings.maxOutputTokens > 0 { lastOutputLimit = settings.maxOutputTokens }
+            settings.maxOutputTokens = 0
+        }
+    }
+
+    func updateInputLimit(_ value: Int) {
+        let positive = max(value, 1)
+        lastInputLimit = positive
+        settings.maxInputCharacters = positive
+    }
+
+    func updateOutputLimit(_ value: Int) {
+        let positive = max(value, 1)
+        lastOutputLimit = positive
+        settings.maxOutputTokens = positive
     }
 
     func save() {
@@ -161,13 +197,16 @@ private struct AISettingsView: View {
                 }
             }
 
-            HStack(spacing: 16) {
-                Stepper("输入上限：\(model.settings.maxInputCharacters) 字符",
-                        value: $model.settings.maxInputCharacters, in: 500...50_000, step: 500)
-                Stepper("输出上限：\(model.settings.maxOutputTokens) tokens",
-                        value: $model.settings.maxOutputTokens, in: 64...4_096, step: 64)
+            VStack(spacing: 10) {
+                limitRow(title: "限制输入长度",
+                         enabled: inputLimitEnabled,
+                         value: inputLimitValue,
+                         unit: "字符")
+                limitRow(title: "限制输出长度",
+                         enabled: outputLimitEnabled,
+                         value: outputLimitValue,
+                         unit: "tokens")
             }
-            .font(.caption)
 
             labeledField("自定义指令") {
                 TextEditor(text: $model.settings.customInstruction)
@@ -204,6 +243,59 @@ private struct AISettingsView: View {
         }
         return "只有你主动选择的文本或图片才会发送。图片处理要求模型支持视觉输入。HTTP 仅允许 localhost/回环地址；远程兼容服务必须使用 HTTPS。"
     }
+
+    private var inputLimitEnabled: Binding<Bool> {
+        Binding(get: { model.settings.maxInputCharacters > 0 },
+                set: { model.setInputLimitEnabled($0) })
+    }
+
+    private var outputLimitEnabled: Binding<Bool> {
+        Binding(get: { model.settings.maxOutputTokens > 0 },
+                set: { model.setOutputLimitEnabled($0) })
+    }
+
+    private var inputLimitValue: Binding<Int> {
+        Binding(get: { max(model.settings.maxInputCharacters, 1) },
+                set: { model.updateInputLimit($0) })
+    }
+
+    private var outputLimitValue: Binding<Int> {
+        Binding(get: { max(model.settings.maxOutputTokens, 1) },
+                set: { model.updateOutputLimit($0) })
+    }
+
+    private func limitRow(title: String, enabled: Binding<Bool>,
+                          value: Binding<Int>, unit: String) -> some View {
+        HStack(spacing: 10) {
+            Toggle(title, isOn: enabled)
+            Spacer()
+            if enabled.wrappedValue {
+                TextField("", value: value, formatter: Self.positiveIntegerFormatter)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 110)
+                Text(unit)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, alignment: .leading)
+            } else {
+                Text("不限制")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 168, alignment: .trailing)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private static let positiveIntegerFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.allowsFloats = false
+        formatter.minimum = 1
+        formatter.usesGroupingSeparator = true
+        return formatter
+    }()
 
     private func labeledField<Content: View>(_ label: String,
                                               @ViewBuilder content: () -> Content) -> some View {

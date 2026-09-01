@@ -29,15 +29,17 @@ final class OpenAIResponsesProvider: StreamingHTTPProvider, AIProvider {
                 ],
             ]]
         }
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": request.model,
             "instructions": Self.systemInstruction + "\n\n任务：\(request.instruction)",
             "input": input,
-            "max_output_tokens": request.maxOutputTokens,
             "store": false,
             "stream": true,
             "tool_choice": "none",
         ]
+        if let limit = request.maxOutputTokens {
+            body["max_output_tokens"] = limit
+        }
         return try JSONSerialization.data(withJSONObject: body)
     }
 

@@ -69,8 +69,8 @@ final class AIActionViewModel: ObservableObject {
 
     private func performText(_ action: AIAction, text: String) {
         guard !text.isEmpty else { state = .failed(AIError.emptyInput.localizedDescription); return }
-        guard text.count <= settings.maxInputCharacters else {
-            state = .failed(AIError.inputTooLong(limit: settings.maxInputCharacters).localizedDescription)
+        if let limit = settings.inputCharacterLimit, text.count > limit {
+            state = .failed(AIError.inputTooLong(limit: limit).localizedDescription)
             return
         }
 
@@ -210,7 +210,7 @@ final class AIActionViewModel: ObservableObject {
             input: input,
             instruction: action.instruction(customInstruction: settings.customInstruction),
             model: settings.model,
-            maxOutputTokens: settings.maxOutputTokens,
+            maxOutputTokens: settings.outputTokenLimit,
             timeout: TimeInterval(settings.requestTimeoutSeconds)
         )
         state = .generating(action: action, partial: "")

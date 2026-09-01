@@ -32,12 +32,14 @@ final class LocalCompatibleProvider: StreamingHTTPProvider, AIProvider {
             ["role": "system", "content": Self.systemInstruction + "\n\n任务：\(request.instruction)"],
             ["role": "user", "content": userContent],
         ]
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": request.model,
             "messages": messages,
-            "max_tokens": request.maxOutputTokens,
             "stream": true,
         ]
+        if let limit = request.maxOutputTokens {
+            body["max_tokens"] = limit
+        }
         return try JSONSerialization.data(withJSONObject: body)
     }
 

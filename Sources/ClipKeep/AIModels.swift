@@ -29,12 +29,17 @@ enum AIProviderKind: String, Codable, CaseIterable, Identifiable {
 }
 
 struct AISettings: Codable, Equatable {
+    static let suggestedInputLimit = 12_000
+    static let suggestedOutputLimit = 800
+
     var enabled = false
     var provider: AIProviderKind = .openAI
     var baseURL = AIProviderKind.openAI.defaultBaseURL
     var model = AIProviderKind.openAI.defaultModel
-    var maxInputCharacters = 12_000
-    var maxOutputTokens = 800
+    /// 0 表示不设置客户端输入限制；正数表示最大字符数。
+    var maxInputCharacters = 0
+    /// 0 表示不向 Provider 发送输出 token 上限；正数会写入请求参数。
+    var maxOutputTokens = 0
     var requestTimeoutSeconds = 45
     var customInstruction = ""
 
@@ -42,11 +47,23 @@ struct AISettings: Codable, Equatable {
         var settings = self
         settings.baseURL = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
-        settings.maxInputCharacters = min(max(settings.maxInputCharacters, 500), 50_000)
-        settings.maxOutputTokens = min(max(settings.maxOutputTokens, 64), 4_096)
+        if settings.maxInputCharacters < 0 {
+            settings.maxInputCharacters = Self.suggestedInputLimit
+        }
+        if settings.maxOutputTokens < 0 {
+            settings.maxOutputTokens = Self.suggestedOutputLimit
+        }
         settings.requestTimeoutSeconds = min(max(settings.requestTimeoutSeconds, 5), 120)
         settings.customInstruction = String(settings.customInstruction.prefix(2_000))
         return settings
+    }
+
+    var inputCharacterLimit: Int? {
+        maxInputCharacters > 0 ? maxInputCharacters : nil
+    }
+
+    var outputTokenLimit: Int? {
+        maxOutputTokens > 0 ? maxOutputTokens : nil
     }
 }
 
@@ -150,7 +167,7 @@ struct AIRequest {
     let input: AIInput
     let instruction: String
     let model: String
-    let maxOutputTokens: Int
+    let maxOutputTokens: Int?
     let timeout: TimeInterval
 }
 

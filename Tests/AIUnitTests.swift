@@ -20,6 +20,7 @@ struct AIUnitTests {
         try testLocalRequestBody()
         try testLocalImageRequestBody()
         try testStreamingEvents()
+        testTextInputLimitState()
         await testImageStateMachine()
         testAppMenu()
 
@@ -31,16 +32,34 @@ struct AIUnitTests {
     }
 
     private static func testSettingsValidation() {
+        let defaults = AISettings()
+        expect(defaults.inputCharacterLimit == nil, "input limit defaults to off")
+        expect(defaults.outputTokenLimit == nil, "output limit defaults to off")
+
         var settings = AISettings()
         settings.maxInputCharacters = -1
         settings.maxOutputTokens = 99_999
         settings.requestTimeoutSeconds = 1
         settings.baseURL = "  https://api.openai.com/v1  "
         let validated = settings.validated()
-        expect(validated.maxInputCharacters == 500, "clamps minimum input")
-        expect(validated.maxOutputTokens == 4_096, "clamps maximum output")
+        expect(validated.maxInputCharacters == AISettings.suggestedInputLimit,
+               "negative input limit falls back safely")
+        expect(validated.maxOutputTokens == 99_999, "large positive output limit is preserved")
+        expect(validated.outputTokenLimit == 99_999, "positive output limit is enabled")
         expect(validated.requestTimeoutSeconds == 5, "clamps minimum timeout")
         expect(validated.baseURL == "https://api.openai.com/v1", "trims base URL")
+
+        var inverse = AISettings()
+        inverse.maxInputCharacters = 99_999
+        inverse.maxOutputTokens = -1
+        let inverseValidated = inverse.validated()
+        expect(inverseValidated.maxInputCharacters == 99_999,
+               "large positive input limit is preserved")
+        expect(inverseValidated.maxOutputTokens == AISettings.suggestedOutputLimit,
+               "negative output limit falls back safely")
+        expect(AISettings().validated().inputCharacterLimit == nil
+               && AISettings().validated().outputTokenLimit == nil,
+               "explicit zero limits remain disabled after validation")
     }
 
     private static func testSettingsBackwardCompatibility() throws {
@@ -59,6 +78,16 @@ struct AIUnitTests {
         let settings = try JSONDecoder().decode(Settings.self, from: Data(oldJSON.utf8))
         expect(settings.ai == nil, "old settings decode without AI key")
         expect(!settings.validated().aiSettings.enabled, "old settings keep AI disabled")
+
+        var priorAI = AISettings()
+        priorAI.maxInputCharacters = 12_000
+        priorAI.maxOutputTokens = 800
+        let roundTrip = try JSONDecoder().decode(AISettings.self,
+                                                from: JSONEncoder().encode(priorAI))
+        expect(roundTrip.maxInputCharacters == 12_000,
+               "existing numeric input limit remains compatible")
+        expect(roundTrip.maxOutputTokens == 800,
+               "existing numeric output limit remains compatible")
     }
 
     private static func testSettingsFirstSaveAndReplace() throws {
@@ -80,6 +109,9 @@ struct AIUnitTests {
         let decoded = try JSONDecoder().decode(Settings.self,
                                                from: Data(contentsOf: URL(fileURLWithPath: path)))
         expect(decoded.maxTextItems == 321, "existing settings are atomically replaced")
+        expect(decoded.aiSettings.inputCharacterLimit == nil
+               && decoded.aiSettings.outputTokenLimit == nil,
+               "disabled AI limits survive settings round trip")
         expect(!FileManager.default.fileExists(atPath: path + ".tmp"),
                "settings replacement leaves no temp file")
     }
@@ -160,6 +192,11 @@ struct AIUnitTests {
         expect(object["stream"] as? Bool == true, "OpenAI request enables streaming")
         expect(object["tool_choice"] as? String == "none", "OpenAI request disables tools")
         expect(object["input"] as? String == "hello", "OpenAI request sends selected text only")
+        expect(object["max_output_tokens"] as? Int == 128,
+               "OpenAI request sends enabled output limit")
+        let automatic = try jsonObject(provider.requestBody(for: automaticRequest))
+        expect(automatic["max_output_tokens"] == nil,
+               "OpenAI request omits disabled output limit")
     }
 
     private static func testOpenAIImageRequestBody() throws {
@@ -184,6 +221,11 @@ struct AIUnitTests {
         let messages = object["messages"] as? [[String: Any]]
         expect(messages?.last?["content"] as? String == "hello",
                "local request sends selected text only")
+        expect(object["max_tokens"] as? Int == 128,
+               "local request sends enabled output limit")
+        let automatic = try jsonObject(provider.requestBody(for: automaticRequest))
+        expect(automatic["max_tokens"] == nil,
+               "local request omits disabled output limit")
     }
 
     private static func testLocalImageRequestBody() throws {
@@ -218,6 +260,25 @@ struct AIUnitTests {
             _ = try LocalCompatibleProvider.parseEvent(Data(
                 #"{"error":{"message":"model missing"}}"#.utf8))
         }, "surfaces local stream errors")
+    }
+
+    @MainActor
+    private static func testTextInputLimitState() {
+        var limitedSettings = AISettings(enabled: true)
+        limitedSettings.maxInputCharacters = 3
+        let limited = makeActionModel(settings: limitedSettings, recognizedText: "")
+        limited.perform(.summarize, on: textItem("1234"))
+        expect(failureMessage(limited.state)?.contains("3 字符") == true,
+               "enabled input limit rejects oversized text locally")
+
+        var unlimitedSettings = AISettings(enabled: true)
+        unlimitedSettings.maxInputCharacters = 0
+        let unlimited = makeActionModel(settings: unlimitedSettings, recognizedText: "")
+        let secret = String(repeating: "x", count: 100)
+            + " sk-test_123456789012345678901234"
+        unlimited.perform(.summarize, on: textItem(secret))
+        expect(failureMessage(unlimited.state)?.contains("高风险敏感内容") == true,
+               "disabled input limit allows text to reach safety scanning")
     }
 
     @MainActor
@@ -315,8 +376,14 @@ struct AIUnitTests {
                   maxOutputTokens: 128, timeout: 10)
     }
 
+    private static var automaticRequest: AIRequest {
+        AIRequest(action: .summarize, input: .text("hello"), instruction: "summarize",
+                  model: "test-model", maxOutputTokens: nil, timeout: 10)
+    }
+
     @MainActor
     private static func makeActionModel(
+        settings: AISettings = AISettings(enabled: true),
         recognizedText: String? = nil,
         preparer: @escaping AIActionViewModel.ImagePreparer = { _ in
             ImageCodec.AIUpload(png: Data([1]), pixelWidth: 320, pixelHeight: 180)
@@ -327,7 +394,7 @@ struct AIUnitTests {
             recognizedText ?? ""
         }
         return AIActionViewModel(
-            settings: AISettings(enabled: true),
+            settings: settings,
             secretStore: SecretStore(),
             onCopyResult: { _ in },
             onSaveResult: { _ in },
@@ -341,6 +408,13 @@ struct AIUnitTests {
                  contentHash: "hash", sourceApp: nil, isFavorite: false,
                  createdAt: Date(), updatedAt: Date(), imageData: data,
                  thumbnailData: nil, pixelWidth: 320, pixelHeight: 180)
+    }
+
+    private static func textItem(_ content: String) -> ClipItem {
+        ClipItem(id: 2, kind: .text, content: content, preview: content,
+                 contentHash: "text-hash", sourceApp: nil, isFavorite: false,
+                 createdAt: Date(), updatedAt: Date(), imageData: nil,
+                 thumbnailData: nil, pixelWidth: nil, pixelHeight: nil)
     }
 
     @MainActor
